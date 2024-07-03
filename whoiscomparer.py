@@ -14,6 +14,7 @@ nonmatches = []
 invalidHostNames = []
 internalIPs = {}
 allIPs = []
+allHosts2 = []
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
@@ -33,8 +34,16 @@ for ip in ipsLines:
     ip = ip.strip("\n")
     allIPs.append(ip)
 
-allHosts = list(dict.fromkeys(allHosts))
-allHosts2 = allHosts.copy()
+for host in allHosts:
+    if "://" in host:
+        host = host.split("://")[1]
+    if ":" in host:
+        host = host.split(":")[0]
+    allHosts2.append(host)
+
+allHosts = list(dict.fromkeys(allHosts2.copy()))
+allHosts2 = list(dict.fromkeys(allHosts.copy()))
+
 for host in allHosts:
     try:
         ipAddr = socket.gethostbyname(host)
@@ -50,6 +59,7 @@ for host in allHosts:
         internalIPs[host] = ipAddr
         print("Internal IP: {}!".format(host))
         allHosts2.remove(host)
+
 totalHosts = len(allHosts2)
 count = 0
 
