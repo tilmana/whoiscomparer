@@ -43,6 +43,7 @@ for host in allHosts:
 
 allHosts = list(dict.fromkeys(allHosts2.copy()))
 allHosts2 = list(dict.fromkeys(allHosts.copy()))
+allIPs = list(dict.fromkeys(allIPs.copy()))
 
 for host in allHosts:
     try:
