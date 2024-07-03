@@ -39,15 +39,18 @@ for host in allHosts:
         host = host.split("://")[1]
     if ":" in host:
         host = host.split(":")[0]
+    if "/" in host:
+        host = host.strip("/")
     allHosts2.append(host)
 
+oldHosts = allHosts.copy()
 allHosts = list(dict.fromkeys(allHosts2.copy()))
-allHosts2 = list(dict.fromkeys(allHosts.copy()))
 allIPs = list(dict.fromkeys(allIPs.copy()))
 
 for host in allHosts:
     try:
         ipAddr = socket.gethostbyname(host)
+        print(ipAddr)
         if ipMode == "y":
             if ipAddr not in allIPs:
                 allHosts2.remove(host)
@@ -191,6 +194,17 @@ for host in allHosts2:
         else:
             output = "{0} --- {1}".format(host1, w1["org"])
             nonmatches.append(output)
+
+print("===ORIGINALS===")
+
+combinedHosts = matches + nonmatches
+for host in combinedHosts:
+    if " " in host:
+        host = host.split(" ")[0]
+    for host2 in oldHosts:
+        if host in host2:
+            print(host2)
+            continue
 
 print("===MATCHES===")
 
