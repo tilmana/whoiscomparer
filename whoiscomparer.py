@@ -1,7 +1,12 @@
-import time
+import time # added 2 second delays after each whois lookup because for some domains it seems to not return "org" data if performed quickly?
 import whois
+import requests
 import ipaddress
 import socket
+
+requests.packages.urllib3.disable_warnings()
+
+ipMode = input("Remove hosts that do not resolve to IPs in \"ips.txt\"? (Y/N): ").lower()
 
 allHosts = []
 matches = []
@@ -10,12 +15,16 @@ invalidHostNames = []
 internalIPs = {}
 allIPs = []
 
-hostsFile = open("urls.txt", "r")
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br"
+}
+
+hostsFile = open("whoisurls.txt", "r")
 hostsLines = hostsFile.readlines()
 for host in hostsLines:
     host = host.strip("\n")
-    host = host.split("://")[1]
-    host = host.split(":")[0]
     allHosts.append(host)
 
 ipsFile = open("ips.txt", "r")
@@ -25,45 +34,152 @@ for ip in ipsLines:
     allIPs.append(ip)
 
 allHosts = list(dict.fromkeys(allHosts))
+allHosts2 = allHosts.copy()
 for host in allHosts:
     try:
         ipAddr = socket.gethostbyname(host)
-        if ipAddr not in allIPs:
-            allHosts.remove(host)
+        if ipMode == "y":
+            if ipAddr not in allIPs:
+                allHosts2.remove(host)
     except Exception as e:
         print("{0} :: {1}".format(e, host))
         invalidHostNames.append(host)
-        allHosts.remove(host)
+        allHosts2.remove(host)
         continue
     if ipaddress.ip_address(ipAddr).is_private:
         internalIPs[host] = ipAddr
         print("Internal IP: {}!".format(host))
-        allHosts.remove(host)
-        continue
-totalHosts = len(allHosts)
+        allHosts2.remove(host)
+totalHosts = len(allHosts2)
 count = 0
 
-for host in allHosts:
-    time.sleep(3) # without a delay, whois lookups often don't return "org" data from testing
+for host in allHosts2:
     if host in invalidHostNames or host in internalIPs.keys():
         continue
     count += 1
     print("{0}/{1}".format(count, totalHosts))
+    error = False
     try:
-        w1 = whois.whois(host)
-        if w1["org"] != None:
-            pass
-        else:
-            raise Exception("Error!")
+        r1 = requests.get(url="http://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
     except Exception as e:
-        print("Error with host: {0}".format(host))
+        try:
+            r1 = requests.get(url="https://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
+        except Exception as e:
+            error = True
+    if error == True:
+        print("Invalid HTTP host: {0}".format(host))
+        try:
+            w1 = whois.whois(host)
+            time.sleep(2)
+            if w1["org"] != None:
+                pass
+            else:
+                raise Exception("Error!")
+        except Exception as e:
+            try:
+                host = '.'.join(host.split(".")[-2:])
+                w1 = whois.whois(host)
+                time.sleep(2)
+                if w1["org"] != None:
+                    pass
+                else:
+                    raise Exception("Error!")
+            except Exception as e:
+                print("Error with host: {0}".format(host))
+                continue
+        if "test123" in w1["org"].lower():
+            output = "{0} --- {1}".format(host, w1["org"])
+            matches.append(output)
+        else:
+            output = "{0} --- {1}".format(host, w1["org"])
+            nonmatches.append(output)
         continue
-    if "test123" in w1["org"].lower(): # whois organization data to "match" against
-        output = "{0} --- {1}".format(host, w1["org"])
-        matches.append(output)
+    if len(r1.history) > 0:
+        host1 = r1.history[0].url.split("://")[1]
+        host2 = r1.history[-1].url.split("://")[1]
+        if ":" in host1:
+            host1 = host1.split(":")[0]
+        if "?" in host1:
+            host1 = host1.split("?")[0]
+        if "/" in host1:
+            host1 = host1.split("/")[0]
+        if "\\" in host1:
+            host1 = host1.split("\\")[0]
+        if ":" in host2:
+            host2 = host2.split(":")[0]
+        if "?" in host2:
+            host2 = host2.split("?")[0]
+        if "/" in host2:
+            host2 = host2.split("/")[0]
+        if "\\" in host2:
+            host2 = host2.split("\\")[0]
+        try:
+            w1 = whois.whois(host1)
+            time.sleep(2)
+            w2 = whois.whois(host2)
+            time.sleep(2)
+            w3 = len(r1.history)
+            if w1["org"] != None and w2["org"] != None:
+                pass
+            else:
+                raise Exception("Error!")
+        except Exception as e:
+            try:
+                host1 = '.'.join(host1.split(".")[-2:])
+                host2 = '.'.join(host2.split(".")[-2:])
+                w1 = whois.whois(host1)
+                time.sleep(2)
+                w2 = whois.whois(host2)
+                time.sleep(2)
+                w3 = len(r1.history)
+                if w1["org"] != None and w2["org"] != None:
+                    pass
+                else:
+                    raise Exception("Error!")
+            except Exception as e:
+                print("Error with host: {0}".format(host))
+                continue
+        if "test123" in w1["org"].lower():
+            output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
+            matches.append(output)
+        else:
+            output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
+            nonmatches.append(output)
     else:
-        output = "{0} --- {1}".format(host, w1["org"])
-        nonmatches.append(output)
+        host1 = r1.url.split("://")[1]
+        if ":" in host1:
+            host1 = host1.split(":")[0]
+        if "?" in host1:
+            host1 = host1.split("?")[0]
+        if "/" in host1:
+            host1 = host1.split("/")[0]
+        if "\\" in host1:
+            host1 = host1.split("\\")[0]
+        try:
+            w1 = whois.whois(host1)
+            time.sleep(2)
+            if w1["org"] != None:
+                pass
+            else:
+                raise Exception("Error!")
+        except Exception as e:
+            try:
+                host1 = '.'.join(host1.split(".")[-2:])
+                w1 = whois.whois(host1)
+                time.sleep(2)
+                if w1["org"] != None:
+                    pass
+                else:
+                    raise Exception("Error!")
+            except Exception as e:
+                print("Error with host: {0}".format(host))
+                continue
+        if "test123" in w1["org"].lower():
+            output = "{0} --- {1}".format(host1, w1["org"])
+            matches.append(output)
+        else:
+            output = "{0} --- {1}".format(host1, w1["org"])
+            nonmatches.append(output)
 
 print("===MATCHES===")
 
