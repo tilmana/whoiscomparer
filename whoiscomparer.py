@@ -81,7 +81,6 @@ for host in allHosts2:
         except Exception as e:
             error = True
     if error == True:
-        print("Invalid HTTP host: {0}".format(host))
         try:
             w1 = whois.whois(host)
             time.sleep(2)
