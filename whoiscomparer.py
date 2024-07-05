@@ -46,7 +46,7 @@ for host in allHosts:
         host = host.strip("/")
     try:
         if ipaddress.ip_address(host):
-            ipAddr = ipaddress.ip_address(host)
+            ipAddr = host
             if ipAddr in allIPs:
                 originals.append(oldHost)
     except Exception as e:
