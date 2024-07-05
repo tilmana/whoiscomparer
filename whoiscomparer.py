@@ -15,6 +15,8 @@ invalidHostNames = []
 internalIPs = {}
 allIPs = []
 allHosts2 = []
+originals = []
+isIPs = []
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
@@ -35,30 +37,52 @@ for ip in ipsLines:
     allIPs.append(ip)
 
 for host in allHosts:
+    oldHost = host
     if "://" in host:
         host = host.split("://")[1]
     if ":" in host:
         host = host.split(":")[0]
     if "/" in host:
         host = host.strip("/")
+    try:
+        if ipaddress.ip_address(host):
+            ipAddr = ipaddress.ip_address(host)
+            if ipAddr in allIPs:
+                originals.append(oldHost)
+    except Exception as e:
+        try:
+            ipAddr = socket.gethostbyname(host)
+            if ipAddr in allIPs:
+                originals.append(oldHost)
+        except Exception as e:
+            pass
     allHosts2.append(host)
 
-oldHosts = allHosts.copy()
 allHosts = list(dict.fromkeys(allHosts2.copy()))
 allIPs = list(dict.fromkeys(allIPs.copy()))
 
 for host in allHosts:
     try:
-        ipAddr = socket.gethostbyname(host)
+        if ipaddress.ip_address(host):
+            ipAddr = host
+        else:
+            ipAddr = socket.gethostbyname(host)
         print(ipAddr)
         if ipMode == "y":
             if ipAddr not in allIPs:
                 allHosts2.remove(host)
     except Exception as e:
-        print("{0} :: {1}".format(e, host))
-        invalidHostNames.append(host)
-        allHosts2.remove(host)
-        continue
+        try:
+            ipAddr = socket.gethostbyname(host)
+            print(ipAddr)
+            if ipMode == "y":
+                if ipAddr not in allIPs:
+                    allHosts2.remove(host)
+        except Exception as e:
+            print("{0} :: {1}".format(e, host))
+            invalidHostNames.append(host)
+            allHosts2.remove(host)
+            continue
     if ipaddress.ip_address(ipAddr).is_private:
         internalIPs[host] = ipAddr
         print("Internal IP: {}!".format(host))
@@ -68,29 +92,26 @@ totalHosts = len(allHosts2)
 count = 0
 
 for host in allHosts2:
+    try:
+        if ipaddress.ip_address(host):
+            isIP = True
+    except Exception as e:
+        isIP = False
     if host in invalidHostNames or host in internalIPs.keys():
         continue
     count += 1
     print("{0}/{1}".format(count, totalHosts))
     error = False
-    try:
-        r1 = requests.get(url="http://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
-    except Exception as e:
+    if isIP == False:
         try:
-            r1 = requests.get(url="https://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
-        except Exception as e:
-            error = True
-    if error == True:
-        try:
-            w1 = whois.whois(host)
-            time.sleep(2)
-            if w1["org"] != None:
-                pass
-            else:
-                raise Exception("Error!")
+            r1 = requests.get(url="http://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
         except Exception as e:
             try:
-                host = '.'.join(host.split(".")[-2:])
+                r1 = requests.get(url="https://" + host, timeout=8, allow_redirects=True, verify=False, headers=headers)
+            except Exception as e:
+                error = True
+        if error == True:
+            try:
                 w1 = whois.whois(host)
                 time.sleep(2)
                 if w1["org"] != None:
@@ -98,48 +119,45 @@ for host in allHosts2:
                 else:
                     raise Exception("Error!")
             except Exception as e:
-                print("Error with host: {0}".format(host))
-                continue
-        if "test123" in w1["org"].lower():
-            output = "{0} --- {1}".format(host, w1["org"])
-            matches.append(output)
-        else:
-            output = "{0} --- {1}".format(host, w1["org"])
-            nonmatches.append(output)
-        continue
-    if len(r1.history) > 0:
-        host1 = r1.history[0].url.split("://")[1]
-        host2 = r1.history[-1].url.split("://")[1]
-        if ":" in host1:
-            host1 = host1.split(":")[0]
-        if "?" in host1:
-            host1 = host1.split("?")[0]
-        if "/" in host1:
-            host1 = host1.split("/")[0]
-        if "\\" in host1:
-            host1 = host1.split("\\")[0]
-        if ":" in host2:
-            host2 = host2.split(":")[0]
-        if "?" in host2:
-            host2 = host2.split("?")[0]
-        if "/" in host2:
-            host2 = host2.split("/")[0]
-        if "\\" in host2:
-            host2 = host2.split("\\")[0]
-        try:
-            w1 = whois.whois(host1)
-            time.sleep(2)
-            w2 = whois.whois(host2)
-            time.sleep(2)
-            w3 = len(r1.history)
-            if w1["org"] != None and w2["org"] != None:
-                pass
+                try:
+                    if not isIP:
+                        host = '.'.join(host.split(".")[-2:])
+                    w1 = whois.whois(host)
+                    time.sleep(2)
+                    if w1["org"] != None:
+                        pass
+                    else:
+                        raise Exception("Error!")
+                except Exception as e:
+                    print("Error with host: {0}".format(host))
+                    continue
+            if "test123" in w1["org"].lower():
+                output = "{0} --- {1}".format(host, w1["org"])
+                matches.append(output)
             else:
-                raise Exception("Error!")
-        except Exception as e:
+                output = "{0} --- {1}".format(host, w1["org"])
+                nonmatches.append(output)
+            continue
+        if len(r1.history) > 0:
+            host1 = r1.history[0].url.split("://")[1]
+            host2 = r1.history[-1].url.split("://")[1]
+            if ":" in host1:
+                host1 = host1.split(":")[0]
+            if "?" in host1:
+                host1 = host1.split("?")[0]
+            if "/" in host1:
+                host1 = host1.split("/")[0]
+            if "\\" in host1:
+                host1 = host1.split("\\")[0]
+            if ":" in host2:
+                host2 = host2.split(":")[0]
+            if "?" in host2:
+                host2 = host2.split("?")[0]
+            if "/" in host2:
+                host2 = host2.split("/")[0]
+            if "\\" in host2:
+                host2 = host2.split("\\")[0]
             try:
-                host1 = '.'.join(host1.split(".")[-2:])
-                host2 = '.'.join(host2.split(".")[-2:])
                 w1 = whois.whois(host1)
                 time.sleep(2)
                 w2 = whois.whois(host2)
@@ -150,34 +168,39 @@ for host in allHosts2:
                 else:
                     raise Exception("Error!")
             except Exception as e:
-                print("Error with host: {0}".format(host))
-                continue
-        if "test123" in w1["org"].lower():
-            output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
-            matches.append(output)
-        else:
-            output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
-            nonmatches.append(output)
-    else:
-        host1 = r1.url.split("://")[1]
-        if ":" in host1:
-            host1 = host1.split(":")[0]
-        if "?" in host1:
-            host1 = host1.split("?")[0]
-        if "/" in host1:
-            host1 = host1.split("/")[0]
-        if "\\" in host1:
-            host1 = host1.split("\\")[0]
-        try:
-            w1 = whois.whois(host1)
-            time.sleep(2)
-            if w1["org"] != None:
-                pass
+                try:
+                    if not isIP:
+                        host1 = '.'.join(host1.split(".")[-2:])
+                        host2 = '.'.join(host2.split(".")[-2:])
+                    w1 = whois.whois(host1)
+                    time.sleep(2)
+                    w2 = whois.whois(host2)
+                    time.sleep(2)
+                    w3 = len(r1.history)
+                    if w1["org"] != None and w2["org"] != None:
+                        pass
+                    else:
+                        raise Exception("Error!")
+                except Exception as e:
+                    print("Error with host: {0}".format(host))
+                    continue
+            if "test123" in w1["org"].lower():
+                output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
+                matches.append(output)
             else:
-                raise Exception("Error!")
-        except Exception as e:
+                output = "{0} --->> {1} --- {2} (R: {3})".format(host1, host2, w2["org"], w3)
+                nonmatches.append(output)
+        else:
+            host1 = r1.url.split("://")[1]
+            if ":" in host1:
+                host1 = host1.split(":")[0]
+            if "?" in host1:
+                host1 = host1.split("?")[0]
+            if "/" in host1:
+                host1 = host1.split("/")[0]
+            if "\\" in host1:
+                host1 = host1.split("\\")[0]
             try:
-                host1 = '.'.join(host1.split(".")[-2:])
                 w1 = whois.whois(host1)
                 time.sleep(2)
                 if w1["org"] != None:
@@ -185,25 +208,31 @@ for host in allHosts2:
                 else:
                     raise Exception("Error!")
             except Exception as e:
-                print("Error with host: {0}".format(host))
-                continue
-        if "test123" in w1["org"].lower():
-            output = "{0} --- {1}".format(host1, w1["org"])
-            matches.append(output)
-        else:
-            output = "{0} --- {1}".format(host1, w1["org"])
-            nonmatches.append(output)
+                try:
+                    if not isIP:
+                        host1 = '.'.join(host1.split(".")[-2:])
+                    w1 = whois.whois(host1)
+                    time.sleep(2)
+                    if w1["org"] != None:
+                        pass
+                    else:
+                        raise Exception("Error!")
+                except Exception as e:
+                    print("Error with host: {0}".format(host))
+                    continue
+            if "test123" in w1["org"].lower():
+                output = "{0} --- {1}".format(host1, w1["org"])
+                matches.append(output)
+            else:
+                output = "{0} --- {1}".format(host1, w1["org"])
+                nonmatches.append(output)
+    else:
+        isIPs.append(host)
 
 print("===ORIGINALS===")
 
-combinedHosts = matches + nonmatches
-for host in combinedHosts:
-    if " " in host:
-        host = host.split(" ")[0]
-    for host2 in oldHosts:
-        if host in host2:
-            print(host2)
-            continue
+for host in originals:
+    print(host)
 
 print("===MATCHES===")
 
@@ -217,6 +246,10 @@ for i in range(len(nonmatches)):
 
 print("@@@INTERNAL IPS@@@")
 for i in internalIPs.keys():
+    print(i)
+
+print('...IPS...')
+for i in isIPs:
     print(i)
 
 print('-=-INVALID HOSTNAMES-=-')
